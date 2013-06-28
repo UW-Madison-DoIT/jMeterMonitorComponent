@@ -1,0 +1,114 @@
+<?xml version="1.0"?>
+<project name="JMeterMonitor" default="package" basedir="." xmlns:artifact="antlib:org.apache.maven.artifact.ant">
+    <property environment="env" />
+    <property file="${basedir}/build.properties" />
+	
+	<path id="maven-ant-tasks.classpath" path="${basedir}/maven-ant-tasks-2.1.3.jar" />
+    <typedef resource="org/apache/maven/artifact/ant/antlib.xml"
+           uri="antlib:org.apache.maven.artifact.ant"
+           classpathref="maven-ant-tasks.classpath" />
+        
+    <fail message="jmeter.home=${jmeter.home} does not exist.${line.separator}">
+        <condition>
+            <not>
+                <available file="${jmeter.home}" />
+            </not>
+        </condition>
+    </fail>
+
+    <!-- Where the Sources live -->
+    <property name="src.addons" value="src/main/java" />
+
+    <!-- Temporary build directories: where the .class live -->
+    <property name="build.addons" value="target/classes" />
+
+    <!-- Where the build result .jar will be placed -->
+    <property name="jar.dest" value="target" />
+    <property name="jar.file" value="ApacheJMeter_addons.jar" />
+
+    <!-- Compilation parameters -->
+    <property name="optimize" value="on" />
+    <property name="deprecation" value="off" />
+    <property name="target.java.version" value="1.6" />
+    <property name="encoding" value="UTF-8" />
+
+    <!-- Directory where the 3rd party libraries will live -->
+    <property name="lib.dir" value="lib" />
+
+    <!-- Directory where jMeter lives -->
+    <property name="jmeter.dir" value="${jmeter.home}" />
+	
+	<artifact:dependencies filesetId="compile-dependency.fileset" useScope="compile">
+		<dependency groupId="com.oracle" artifactId="ojdbc6" version="11.2.0.2.0"/>
+		<dependency groupId="org.apache.tomcat" artifactId="tomcat-jdbc" version="7.0.29"/>
+		<dependency groupId="org.springframework" artifactId="spring-jdbc" version="3.1.2.RELEASE"/>
+		<dependency groupId="org.springframework" artifactId="spring-context-support" version="3.1.2.RELEASE"/>
+	</artifact:dependencies>
+    
+    <artifact:dependencies filesetId="test-dependency.fileset" useScope="test">
+        <dependency groupId="junit" artifactId="junit" version="4.10"/>
+    	<dependency groupId="org.hsqldb" artifactId="hsqldb" version="2.2.8"/>
+    	<dependency groupId="log4j" artifactId="log4j" version="1.2.17"/>
+    	<dependency groupId="org.springframework" artifactId="spring-test" version="3.1.2.RELEASE"/>
+    </artifact:dependencies>
+	
+    <!-- Build classpath -->
+    <path id="classpath">
+    	<fileset refid="compile-dependency.fileset" />
+        <fileset dir="${jmeter.dir}/bin" includes="*.jar" />
+        <fileset dir="${jmeter.dir}/lib" includes="*.jar" />
+        <fileset dir="${jmeter.dir}/lib/ext" includes="*.jar" />
+    </path>
+	
+	<target name="eclipse-lib" description="Setup Eclipse Libraries">
+		<delete dir="${basedir}/elib"/>
+		<mkdir dir="${basedir}/elib"/>
+		<copy todir="${basedir}/elib">
+		  <fileset refid="compile-dependency.fileset" />
+		  <!-- This mapper strips off all leading directory information -->
+		  <mapper type="flatten" />
+		</copy>
+		
+		<delete dir="${basedir}/elib-test"/>
+		<mkdir dir="${basedir}/elib-test"/>
+        <copy todir="${basedir}/elib-test">
+          <fileset refid="test-dependency.fileset" />
+          <!-- This mapper strips off all leading directory information -->
+          <mapper type="flatten" />
+        </copy>
+	</target>
+
+    <target name="compile" description="Compile JMeter addons classes.">
+        <mkdir dir="${build.addons}" />
+        <javac srcdir="${src.addons}" destdir="${build.addons}" optimize="${optimize}" debug="on" target="${target.java.version}" deprecation="${deprecation}" encoding="${encoding}">
+            <include name="**/*.java" />
+            <classpath refid="classpath" />
+        </javac>
+    </target>
+
+    <target name="package" depends="compile">
+        <mkdir dir="${jar.dest}" />
+        <jar jarfile="${jar.dest}/${jar.file}" basedir="${build.addons}">
+            <fileset dir="${src.addons}" includes="**/*.properties" />
+        </jar>
+    </target>
+
+    <target name="deploy" depends="package">
+        <copy file="${jar.dest}/${jar.file}" todir="${jmeter.dir}/lib/ext" />
+        <copy todir="${jmeter.dir}/lib">
+            <fileset refid="compile-dependency.fileset" />
+            <!-- This mapper strips off all leading directory information -->
+            <mapper type="flatten" />
+        </copy>
+    </target>
+
+    <target name="clean" description="Clean up to force a build from source.">
+        <delete file="${jar.dest}/${jar.file}" />
+        <delete dir="${build.addons}" />
+    </target>
+
+    <target name="rebuild" depends="clean,package" description="Re-build from source." />
+
+    <target name="redeploy" depends="clean,deploy" description="Re-build from source." />
+
+</project>
